@@ -1,1 +1,45 @@
-
+[
+  {
+  "id": "OBS-001",
+  "location": "Riverbend Village",
+  "source": "Sample weather bulletin",
+  "reported_at": "2026-10-22T08:00:00+05:30",
+  "claim": "Heavy rainfall reported upstream",
+  "rainfall_mm": 85,
+  "status": "sample_data"
+  },
+  {
+  "id": "OBS-002",
+  "location": "Riverbend Village",
+  "source": "Sample water-level sensor",
+  "reported_at": "2026-10-22T08:15:00+05:30",
+  "claim": "River water level is rising",
+  "water_level_m": 4.2,
+  "status": "sample_data"
+  },
+  {
+  "id": "OBS-003",
+  "location": "Riverbend Village",
+  "source": "Sample community report",
+  "reported_at": "2026-10-22T08:20:00+05:30",
+  "claim": "Water is entering two streets",
+  "status": "sample_data"
+  },
+  {
+  "id": "OBS-004",
+  "location": "Riverbend Village",
+  "source": "Sample old situation report",
+  "reported_at": "2026-10-21T18:00:00+05:30",
+  "claim": "No flooding reported",
+  "status": "sample_data"
+  },
+  {
+  "id": "OBS-005",
+  "location": "Riverbend Village",
+  "source": "Sample sensor feed",
+  "reported_at": "2026-10-22T08:25:00+05:30",
+  "claim": "Water level is stable",
+  "water_level_m": 4.0,
+  "status": "sample_data"
+  }
+  ]
