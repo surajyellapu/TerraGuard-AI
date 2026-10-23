@@ -2,29 +2,71 @@
 
 **Team:** DisasterX
 
-TerraGuard AI is an intelligent disaster-response agent that combines satellite imagery, weather data, maps, and community reports to assess disaster impacts, verify evidence, identify vulnerable areas, and generate explainable response recommendations for emergency teams.
+TerraGuard AI is a disaster-evidence intelligence demo for the Open Agent Hackathon 2026 (“Solving Fragmented Intelligence” track).
+
+Phase 1 turns fragmented **simulated** flood observations into clear analyzer findings and a human-readable incident brief. Sample data is for demonstration only and must not be treated as verified real-world disaster information.
 
 ## Project Status
 
-Initial project scaffold.
+**Phase 1 complete (local demo):**
 
-## Planned Capabilities
+- Rule-based evidence analyzer (`src/analyzer.py`)
+- Human-readable incident brief (`src/brief.py`)
+- Beginner-friendly Streamlit UI (`app.py`)
+- Unit tests for the analyzer and brief
 
-- Combine disaster-related information from multiple sources.
-- Verify and assess evidence using clear, explainable rules.
-- Identify potentially vulnerable areas.
-- Generate actionable recommendations for emergency response teams.
+Later phases may add sponsor integrations. Those are **not implemented yet**, so this README does not claim they work.
+
+## What works today
+
+- Load `sample_flood_evidence.json` (simulated sample data)
+- Flag stale reports and conflicting water-level readings
+- Show findings and an incident brief in the browser
+- Keep the wording clear that sample data does **not** confirm a flood
+
+## What is not built yet
+
+- Live satellite imagery, maps, or weather APIs
+- Vulnerable-area mapping or official response recommendations
+- Zetaris, Meterless, Nightshift, or NVIDIA integrations
 
 ## Repository Structure
 
-- `src/` — application source code.
-- `tests/` — automated tests.
-- `docs/` — project documentation.
-- `evidence_rules.md` — evidence assessment rules.
-- `sample_flood_evidence.json` — sample flood evidence data.
-- `test_cases.md` — test scenarios.
-- `demo_script.md` — demonstration script.
+- `src/analyzer.py` — evidence rules and findings
+- `src/brief.py` — readable incident brief from analyzer output
+- `app.py` — Streamlit demo UI
+- `tests/` — automated tests
+- `sample_flood_evidence.json` — simulated flood evidence
+- `evidence_rules.md` — demo assessment rules
+- `demo_script.md` — Phase 1 demo walkthrough
+- `requirements.txt` — Python dependencies for the UI
 
-## Development
+## Run the Phase 1 demo (Windows PowerShell)
 
-Implementation is in progress. Features and integrations will be added incrementally.
+```powershell
+cd C:\Users\SAI\Desktop\TerraGuard-AI
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+If PowerShell blocks script activation once, run:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Then activate the virtual environment again and run `streamlit run app.py`.
+
+## Run tests
+
+```powershell
+cd C:\Users\SAI\Desktop\TerraGuard-AI
+.\.venv\Scripts\Activate.ps1
+python -m unittest discover -s tests -v
+```
+
+## Safety
+
+This prototype is for demonstration only. It must not replace official alerts, trained responders, or emergency services.
