@@ -1,4 +1,4 @@
-"""Load local sample flood evidence, with an optional Zetaris JDBC client.
+﻿"""Load local sample flood evidence, with an optional Zetaris JDBC client.
 
 The sample JSON loader is NOT a live Zetaris connection.
 Live weather rows from NY_TAXI.weather_data are New York taxi-zone weather.
@@ -224,35 +224,55 @@ def test_zetaris_connection(config=None, allow_prompt=False):
             "jdbc_url": config.jdbc_url,
             "rows": rows,
         }
+
+
     finally:
-        if cursor is not None:
-            cursor.close()
-        if connection is not None:
-            connection.close()
+        try:
+            if cursor is not None:
+                cursor.close()
+        finally:
+            if connection is not None:
+                connection.close()
+
+
 
 
 def fetch_ny_taxi_weather(limit=DEFAULT_WEATHER_LIMIT, config=None, allow_prompt=False):
+
     """Fetch a small number of NY_TAXI.weather_data rows.
 
     Returns dictionaries that keep original column names/values and add
     explicit source metadata. Does not invent rainfall units or flood claims.
+    Row ordering is unspecified because the query has no ORDER BY clause.
+    Raises an exception on configuration, connection, or query failure;
+    a successful empty result is distinct from a failed fetch.
     """
+
     safe_limit = validate_query_limit(limit)
     config = config or load_zetaris_config(allow_prompt=allow_prompt)
     connection = None
     cursor = None
     # Limit is a validated int only; table name is a fixed constant.
     query = f"SELECT * FROM {WEATHER_TABLE} LIMIT {safe_limit}"
+
     try:
         connection = connect_zetaris(config)
         cursor = connection.cursor()
         cursor.execute(query)
         source_rows = _fetchall_dicts(cursor)
+    except Exception as exc:
+        raise ZetarisConnectionError(
+            f"Could not fetch weather preview from {WEATHER_TABLE}."
+        ) from exc
     finally:
-        if cursor is not None:
-            cursor.close()
-        if connection is not None:
-            connection.close()
+        try:
+            if cursor is not None:
+                cursor.close()
+        finally:
+            if connection is not None:
+                connection.close()
+
+
 
     records = []
     for row in source_rows:
@@ -299,8 +319,17 @@ def main(argv=None):
         print(f"Rows: {result['rows']}")
         return
 
+
     if args.fetch_weather:
-        records = fetch_ny_taxi_weather(limit=args.limit, allow_prompt=True)
+        try:
+            records = fetch_ny_taxi_weather(
+                limit=args.limit,
+                allow_prompt=True,
+            )
+        except (ZetarisConfigError, ZetarisConnectionError, ValueError) as exc:
+            print(f"Zetaris weather preview failed: {exc}")
+            return
+
         print(WEATHER_SOURCE_NOTE)
         print(f"Table: {WEATHER_TABLE}")
         print(f"Record count: {len(records)}")
@@ -308,6 +337,7 @@ def main(argv=None):
         print("First record:")
         print(json.dumps(records[0], indent=2) if records else "No records.")
         return
+
 
     records = load_sample_flood_evidence()
     print(DATA_SOURCE_LABEL)

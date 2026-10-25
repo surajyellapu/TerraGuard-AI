@@ -88,5 +88,23 @@ class TestZetarisConnector(unittest.TestCase):
         connection.close.assert_called_once()
 
 
+    @patch("src.zetaris_connector.connect_zetaris")
+    def test_connection_closes_if_cursor_close_raises(self, mock_connect):
+        from src.zetaris_connector import fetch_ny_taxi_weather
+
+        cursor = Mock()
+        cursor.description = [("location",), ("precipitation",)]
+        cursor.fetchall.return_value = [("Newark Airport", "1.2")]
+        cursor.close.side_effect = RuntimeError("cursor close failed")
+
+        connection = Mock()
+        connection.cursor.return_value = cursor
+        mock_connect.return_value = connection
+
+        with self.assertRaises(RuntimeError):
+            fetch_ny_taxi_weather(limit=1, config=Mock())
+
+        connection.close.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()
