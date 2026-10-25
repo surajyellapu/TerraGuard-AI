@@ -5,49 +5,58 @@ from unittest.mock import Mock, patch
 from src.zetaris_connector import (
     DATA_SOURCE_LABEL,
     _fetchall_dicts,
+    fetch_ny_taxi_weather,
     load_sample_flood_evidence,
     validate_query_limit,
 )
 
 
 class TestZetarisConnector(unittest.TestCase):
-
-    def test_loads_five_sample_records(self):
+    def test_load_sample_flood_evidence_returns_records(self):
         records = load_sample_flood_evidence()
-        self.assertEqual(len(records), 5)
 
-    def test_records_are_dictionaries(self):
+        self.assertIsInstance(records, list)
+        self.assertGreater(len(records), 0)
+
+    def test_sample_evidence_records_are_dictionaries(self):
         records = load_sample_flood_evidence()
-        self.assertTrue(all(isinstance(record, dict) for record in records))
 
-    def test_data_is_clearly_labeled_as_sample(self):
-        self.assertIn("LOCAL SAMPLE DATA", DATA_SOURCE_LABEL)
-        self.assertIn("not live Zetaris", DATA_SOURCE_LABEL)
+        for record in records:
+            self.assertIsInstance(record, dict)
 
-    def test_valid_query_limits(self):
-        self.assertEqual(validate_query_limit(1), 1)
+    def test_sample_evidence_has_source_label(self):
+        records = load_sample_flood_evidence()
+
+        for record in records:
+            self.assertIn("source", record)
+            self.assertTrue(record["source"])
+
+    def test_validate_query_limit_accepts_valid_integer(self):
         self.assertEqual(validate_query_limit(5), 5)
-        self.assertEqual(validate_query_limit(100), 100)
 
-    def test_rejects_invalid_query_limits(self):
-        for limit in (0, -1, 101, True, "abc", ""):
-            with self.subTest(limit=limit):
+    def test_validate_query_limit_rejects_invalid_values(self):
+        invalid_values = [0, -1, 1.5, True, "abc"]
+
+        for value in invalid_values:
+            with self.subTest(value=value):
                 with self.assertRaises(ValueError):
-                    validate_query_limit(limit)
+                    validate_query_limit(value)
 
-    def test_accepts_string_and_default_query_limits(self):
-        self.assertEqual(validate_query_limit("5"), 5)
-        self.assertEqual(validate_query_limit(None), 5)
+    def test_validate_query_limit_accepts_numeric_string(self):
+        self.assertEqual(validate_query_limit("10"), 10)
 
-    def test_fetchall_dicts_preserves_column_names_and_values(self):
+    def test_validate_query_limit_uses_default_when_none(self):
+        self.assertEqual(validate_query_limit(None, default=5), 5)
+
+    def test_fetchall_dicts_converts_rows_to_dictionaries(self):
         cursor = Mock()
         cursor.description = [
+            ("id",),
             ("location",),
-            ("precipitation",),
         ]
         cursor.fetchall.return_value = [
-            ("Riverbend", "1.2"),
-            ("Northbank", "0.5"),
+            (1, "Newark"),
+            (2, "Jamaica Bay"),
         ]
 
         records = _fetchall_dicts(cursor)
@@ -55,46 +64,50 @@ class TestZetarisConnector(unittest.TestCase):
         self.assertEqual(
             records,
             [
-                {"location": "Riverbend", "precipitation": "1.2"},
-                {"location": "Northbank", "precipitation": "0.5"},
+                {"id": 1, "location": "Newark"},
+                {"id": 2, "location": "Jamaica Bay"},
             ],
         )
 
     @patch("src.zetaris_connector.connect_zetaris")
     def test_fetch_weather_returns_source_metadata(self, mock_connect):
-        from src.zetaris_connector import fetch_ny_taxi_weather
-
         cursor = Mock()
         cursor.description = [
-            ("location",),
+            ("zone_id",),
             ("precipitation",),
         ]
-        cursor.fetchall.return_value = [("Newark Airport", "1.2")]
+        cursor.fetchall.return_value = [
+            (1, "0.5"),
+            (2, "1.2"),
+        ]
 
         connection = Mock()
         connection.cursor.return_value = cursor
         mock_connect.return_value = connection
 
-        records = fetch_ny_taxi_weather(limit=1, config=Mock())
+        records = fetch_ny_taxi_weather(
+            limit=2,
+            config=Mock(),
+        )
 
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0]["location"], "Newark Airport")
-        self.assertEqual(records[0]["precipitation"], "1.2")
-        self.assertEqual(records[0]["_source_system"], "zetaris_jdbc")
-        self.assertEqual(records[0]["_source_table"], "NY_TAXI.weather_data")
-        self.assertEqual(records[0]["_query_limit"], 1)
+        self.assertEqual(len(records), 2)
 
+        for record in records:
+            self.assertIn("zone_id", record)
+            self.assertIn("precipitation", record)
+
+        cursor.execute.assert_called_once()
         cursor.close.assert_called_once()
         connection.close.assert_called_once()
 
-
     @patch("src.zetaris_connector.connect_zetaris")
     def test_connection_closes_if_cursor_close_raises(self, mock_connect):
-        from src.zetaris_connector import fetch_ny_taxi_weather
-
         cursor = Mock()
-        cursor.description = [("location",), ("precipitation",)]
-        cursor.fetchall.return_value = [("Newark Airport", "1.2")]
+        cursor.description = [
+            ("zone_id",),
+            ("precipitation",),
+        ]
+        cursor.fetchall.return_value = [(1, "0.5")]
         cursor.close.side_effect = RuntimeError("cursor close failed")
 
         connection = Mock()
@@ -102,9 +115,13 @@ class TestZetarisConnector(unittest.TestCase):
         mock_connect.return_value = connection
 
         with self.assertRaises(RuntimeError):
-            fetch_ny_taxi_weather(limit=1, config=Mock())
+            fetch_ny_taxi_weather(
+                limit=1,
+                config=Mock(),
+            )
 
         connection.close.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

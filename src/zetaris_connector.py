@@ -1,4 +1,5 @@
-﻿"""Load local sample flood evidence, with an optional Zetaris JDBC client.
+﻿
+"""Load local sample flood evidence, with an optional Zetaris JDBC client.
 
 The sample JSON loader is NOT a live Zetaris connection.
 Live weather rows from NY_TAXI.weather_data are New York taxi-zone weather.
@@ -10,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from getpass import getpass
 from pathlib import Path
@@ -26,13 +28,14 @@ DEFAULT_JDBC_JAR = (
     r"C:\zetaris-platform\zetaris-platform\jdbc"
     r"\ndp-jdbc-driver-2.4.3.1-7eff043-driver.jar"
 )
+
 WEATHER_TABLE = "NY_TAXI.weather_data"
 DEFAULT_WEATHER_LIMIT = 5
 MAX_WEATHER_LIMIT = 100
 WEATHER_SOURCE_NOTE = (
     "New York taxi-zone weather from Zetaris NY_TAXI.weather_data. "
     "Not live flood evidence. Not Riverbend Village data. "
-    "precipitation units and meaning are not verified. "
+    "Precipitation units and meaning are not verified. "
     "Does not confirm a flood."
 )
 
@@ -55,15 +58,7 @@ class ZetarisConfig:
 
 
 def load_sample_flood_evidence():
-    """Load sample_flood_evidence.json and check it is a list of records.
-
-    Returns:
-        A list of dictionaries from the local sample file.
-
-    Raises:
-        FileNotFoundError: if the sample JSON file is missing.
-        ValueError: if the JSON is not a list of dictionaries.
-    """
+    """Load sample_flood_evidence.json and validate its record structure."""
     with DATA_FILE.open("r", encoding="utf-8-sig") as file:
         data = json.load(file)
 
@@ -91,6 +86,7 @@ def validate_query_limit(
     """Return a safe positive integer limit. Reject arbitrary SQL fragments."""
     if limit is None:
         limit = default
+
     if isinstance(limit, bool) or not isinstance(limit, int):
         if isinstance(limit, str) and limit.strip().isdigit():
             limit = int(limit.strip())
@@ -99,20 +95,18 @@ def validate_query_limit(
                 "Query limit must be a positive integer "
                 f"between 1 and {max_limit}."
             )
+
     if limit < 1 or limit > max_limit:
         raise ValueError(
             "Query limit must be a positive integer "
             f"between 1 and {max_limit}."
         )
+
     return limit
 
 
 def load_zetaris_config(allow_prompt=False):
-    """Load JDBC settings from environment variables.
-
-    Username and password are never hardcoded. Password may be requested
-    interactively only when allow_prompt=True (CLI use).
-    """
+    """Load JDBC settings from environment variables."""
     jdbc_url = os.environ.get("ZETARIS_JDBC_URL", DEFAULT_JDBC_URL).strip()
     driver_class = os.environ.get(
         "ZETARIS_JDBC_DRIVER_CLASS",
@@ -132,13 +126,15 @@ def load_zetaris_config(allow_prompt=False):
         missing.append("ZETARIS_USER")
     if not password:
         missing.append("ZETARIS_PASSWORD")
+
     if missing:
         raise ZetarisConfigError(
             "Live Zetaris connection is opt-in and is not configured. "
             "Set " + " and ".join(missing) + " in the environment "
-            "(or enter them when using the CLI --test-connection flag). "
+            "(or enter them when using the CLI). "
             "The app can continue with local sample flood evidence."
         )
+
     if not jdbc_url:
         raise ZetarisConfigError("ZETARIS_JDBC_URL is empty.")
     if not driver_class:
@@ -161,16 +157,45 @@ def _to_python_value(value):
     return str(value)
 
 
+def _close_resources(cursor, connection):
+    """Close both resources without masking an active operation error."""
+    active_error = sys.exc_info()[1]
+    cleanup_error = None
+
+    try:
+        if cursor is not None:
+            cursor.close()
+    except Exception as exc:
+        cleanup_error = exc
+
+    try:
+        if connection is not None:
+            connection.close()
+    except Exception as exc:
+        if cleanup_error is None:
+            cleanup_error = exc
+
+    if cleanup_error is not None:
+        if active_error is None:
+            raise cleanup_error
+        if hasattr(active_error, "add_note"):
+            active_error.add_note(
+                f"Resource cleanup also failed: {cleanup_error}"
+            )
+
+
 def _fetchall_dicts(cursor):
     description = cursor.description or ()
     column_names = [item[0] for item in description]
     rows = cursor.fetchall() or []
     records = []
+
     for row in rows:
         record = {}
         for name, value in zip(column_names, row):
             record[name] = _to_python_value(value)
         records.append(record)
+
     return records
 
 
@@ -213,6 +238,7 @@ def test_zetaris_connection(config=None, allow_prompt=False):
     config = config or load_zetaris_config(allow_prompt=allow_prompt)
     connection = None
     cursor = None
+
     try:
         connection = connect_zetaris(config)
         cursor = connection.cursor()
@@ -224,36 +250,30 @@ def test_zetaris_connection(config=None, allow_prompt=False):
             "jdbc_url": config.jdbc_url,
             "rows": rows,
         }
-
-
     finally:
-        try:
-            if cursor is not None:
-                cursor.close()
-        finally:
-            if connection is not None:
-                connection.close()
+        _close_resources(cursor, connection)
 
 
+def fetch_ny_taxi_weather(
+    limit=DEFAULT_WEATHER_LIMIT,
+    config=None,
+    allow_prompt=False,
+):
+    """Fetch limited NY_TAXI weather rows, not flood evidence.
 
+    Original column names and values are preserved with source metadata.
+    Precipitation units are not verified. Row ordering is unspecified because
+    the query has no ORDER BY clause.
 
-def fetch_ny_taxi_weather(limit=DEFAULT_WEATHER_LIMIT, config=None, allow_prompt=False):
-
-    """Fetch a small number of NY_TAXI.weather_data rows.
-
-    Returns dictionaries that keep original column names/values and add
-    explicit source metadata. Does not invent rainfall units or flood claims.
-    Row ordering is unspecified because the query has no ORDER BY clause.
-    Raises an exception on configuration, connection, or query failure;
-    a successful empty result is distinct from a failed fetch.
+    Configuration, connection, and query failures raise exceptions. A
+    successful empty result is distinct from a failed fetch.
     """
-
     safe_limit = validate_query_limit(limit)
     config = config or load_zetaris_config(allow_prompt=allow_prompt)
     connection = None
     cursor = None
-    # Limit is a validated int only; table name is a fixed constant.
     query = f"SELECT * FROM {WEATHER_TABLE} LIMIT {safe_limit}"
+    source_rows = None
 
     try:
         connection = connect_zetaris(config)
@@ -265,14 +285,7 @@ def fetch_ny_taxi_weather(limit=DEFAULT_WEATHER_LIMIT, config=None, allow_prompt
             f"Could not fetch weather preview from {WEATHER_TABLE}."
         ) from exc
     finally:
-        try:
-            if cursor is not None:
-                cursor.close()
-        finally:
-            if connection is not None:
-                connection.close()
-
-
+        _close_resources(cursor, connection)
 
     records = []
     for row in source_rows:
@@ -284,14 +297,13 @@ def fetch_ny_taxi_weather(limit=DEFAULT_WEATHER_LIMIT, config=None, allow_prompt
         }
         record.update(row)
         records.append(record)
+
     return records
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description=(
-            "TerraGuard local sample loader and optional Zetaris JDBC tools."
-        )
+        description="TerraGuard local sample loader and optional Zetaris JDBC tools."
     )
     parser.add_argument(
         "--test-connection",
@@ -312,13 +324,17 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.test_connection:
-        result = test_zetaris_connection(allow_prompt=True)
+        try:
+            result = test_zetaris_connection(allow_prompt=True)
+        except (ZetarisConfigError, ZetarisConnectionError, ValueError) as exc:
+            print(f"Zetaris connection test failed: {exc}")
+            return
+
         print("Zetaris JDBC connection test: OK")
         print(f"JDBC URL: {result['jdbc_url']}")
         print("Query: SELECT 1")
         print(f"Rows: {result['rows']}")
         return
-
 
     if args.fetch_weather:
         try:
@@ -337,7 +353,6 @@ def main(argv=None):
         print("First record:")
         print(json.dumps(records[0], indent=2) if records else "No records.")
         return
-
 
     records = load_sample_flood_evidence()
     print(DATA_SOURCE_LABEL)
