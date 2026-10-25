@@ -2,3 +2,10 @@
 __pycache__/
 .env
 *.pyc
+# Node.js dependencies
+node_modules/
+
+# H-MEM generated local memory and audit data
+.terraguard_hmem/
+# H-MEM generated persistence test data
+engines/hmem/reference/terraguard-persistence-test/
