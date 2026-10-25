@@ -1,11 +1,14 @@
 """Beginner-friendly Streamlit UI for TerraGuard AI Phase 1.
 
 Uses the existing analyze() function and build_incident_brief().
+
 Includes sample flood evidence analysis, an optional AI review draft,
 and H-MEM evidence memory.
 """
 
 import json
+import math
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -19,6 +22,7 @@ from src.hmem_client import (
     search_evidence,
 )
 from src.nightshift_client import generate_review_draft
+
 
 DATA_FILE = Path(__file__).resolve().parent / "sample_flood_evidence.json"
 
@@ -76,6 +80,7 @@ def main():
     st.caption("All rows below are simulated sample data.")
 
     table_rows = []
+
     for item in observations:
         table_rows.append(
             {
@@ -94,8 +99,10 @@ def main():
 
     # Analyzer summary.
     st.subheader("Analyzer summary")
+
     st.write(
-        f"Observations reviewed: **{analysis.get('observation_count')}**"
+        f"Observations reviewed: "
+        f"**{analysis.get('observation_count')}**"
     )
 
     if "valid_timestamped_observations" in analysis:
@@ -130,6 +137,7 @@ def main():
     )
 
     st.divider()
+
     st.caption(
         "Phase 1 uses local sample JSON and the existing Python analyzer. "
         "External data-platform and model integrations must be verified separately."
@@ -163,7 +171,9 @@ def main():
     if ai_review_draft:
         st.markdown("**AI draft — requires human review**")
         st.write(ai_review_draft)
+
     # Structured sample evidence storage.
+    st.divider()
     st.subheader("Store Structured Evidence")
 
     st.caption(
@@ -218,33 +228,62 @@ def main():
         )
 
     if structured_submitted:
-        if not all(
-            value.strip()
-            for value in (
-                evidence_id,
-                evidence_location,
-                evidence_source,
-                evidence_reported_at,
-                evidence_claim,
+        required_values = {
+            "Evidence ID": evidence_id,
+            "Location": evidence_location,
+            "Source": evidence_source,
+            "Reported at": evidence_reported_at,
+            "Observation claim": evidence_claim,
+        }
+
+        missing_fields = [
+            label
+            for label, value in required_values.items()
+            if not value.strip()
+        ]
+
+        if missing_fields:
+            st.warning(
+                "Please complete all required evidence fields: "
+                + ", ".join(missing_fields)
+                + "."
             )
-        ):
-            st.warning("Please complete all required evidence fields.")
         else:
+            # Validate the timestamp before storing evidence.
+            try:
+                reported_at = datetime.fromisoformat(
+                    evidence_reported_at.strip().replace("Z", "+00:00")
+                )
+            except ValueError:
+                st.error(
+                    "Invalid timestamp. Use ISO 8601 format, for example "
+                    "2026-10-22T08:00:00+05:30."
+                )
+                st.stop()
+
             evidence_record = {
                 "id": evidence_id.strip(),
                 "location": evidence_location.strip(),
                 "source": evidence_source.strip(),
-                "reported_at": evidence_reported_at.strip(),
+                "reported_at": reported_at.isoformat(),
                 "claim": evidence_claim.strip(),
                 "status": evidence_status,
             }
 
+            # Validate optional measurement.
             if evidence_metric_type != "None":
                 try:
                     metric_value = float(evidence_metric_value)
 
+                    if not math.isfinite(metric_value):
+                        raise ValueError(
+                            "Measurement must be a finite number."
+                        )
+
                     if metric_value < 0:
-                        raise ValueError("Measurement cannot be negative.")
+                        raise ValueError(
+                            "Measurement cannot be negative."
+                        )
 
                     if evidence_metric_type == "Rainfall (mm)":
                         evidence_record["rainfall_mm"] = metric_value
@@ -253,27 +292,33 @@ def main():
 
                 except ValueError:
                     st.error(
-                        "Enter a valid, non-negative number for the measurement."
+                        "Enter a valid, finite, non-negative number "
+                        "for the measurement."
                     )
                     st.stop()
 
             try:
                 result = add_structured_evidence(evidence_record)
+
                 st.success(
-                    f"Structured evidence stored. "
+                    "Structured evidence stored. "
                     f"Memory ID: {result['memoryId']}"
                 )
+
                 st.json(evidence_record)
+
                 st.caption(
                     result.get(
                         "notice",
                         "Stored sample evidence; not independently verified.",
                     )
                 )
-            except Exception as error:
-                st.error(f"Could not store structured evidence: {error}")
 
-    st.divider()
+            except Exception as error:
+                st.error(
+                    f"Could not store structured evidence: {error}"
+                )
+
     # H-MEM evidence memory.
     st.divider()
     st.subheader("H-MEM Evidence Memory")
@@ -299,11 +344,19 @@ def main():
     if add_submitted:
         if memory_content.strip() and memory_source.strip():
             try:
-                result = add_evidence(memory_content, memory_source)
-                st.success(f"Note stored. Memory ID: {result['memoryId']}")
+                result = add_evidence(
+                    memory_content.strip(),
+                    memory_source.strip(),
+                )
+
+                st.success(
+                    f"Note stored. Memory ID: {result['memoryId']}"
+                )
+
                 st.caption(
                     result.get("notice", "Stored note is unverified.")
                 )
+
             except Exception as error:
                 st.error(f"Could not store note: {error}")
         else:
@@ -321,7 +374,7 @@ def main():
     if search_submitted:
         if memory_query.strip():
             try:
-                result = search_evidence(memory_query)
+                result = search_evidence(memory_query.strip())
                 memories = result.get("memories", [])
 
                 if memories:
