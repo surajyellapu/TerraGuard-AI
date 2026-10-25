@@ -11,13 +11,7 @@ import streamlit as st
 
 from src.analyzer import analyze
 from src.brief import build_incident_brief
-
-DATA_FILE = Path(__file__).resolve().parent / "sample_flood_evidence.json"
-
-
-def load_sample_observations():
-    with DATA_FILE.open("r", encoding="utf-8-sig") as file:
-        return json.load(file)
+from src.zetaris_connector import load_sample_flood_evidence
 
 
 def main():
@@ -43,9 +37,9 @@ def main():
     )
 
     if st.button("Load sample evidence and run analysis", type="primary"):
-        observations = load_sample_observations()
-        analysis = analyze(observations)
-        brief = build_incident_brief(observations, analysis)
+            observations = load_sample_flood_evidence()
+            analysis = analyze(observations)
+            brief = build_incident_brief(observations, analysis)
 
         st.session_state["observations"] = observations
         st.session_state["analysis"] = analysis
