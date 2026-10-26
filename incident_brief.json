@@ -1,0 +1,52 @@
+{
+  "title": "TerraGuard AI - Simulated Flood Incident Brief",
+  "data_notice": "SIMULATED DEMO DATA ONLY - not for real emergency decisions.",
+  "reference_time": "2026-10-22T08:30:00+05:30",
+  "locations": [
+    "Riverbend Village"
+  ],
+  "observation_count": 5,
+  "valid_timestamped_observations": 5,
+  "findings": [
+    {
+      "type": "stale_evidence",
+      "evidence_id": "OBS-004",
+      "age_hours": 14.5,
+      "message": "Report is 14.5 hours old; review before relying on it."
+    },
+    {
+      "type": "water_level_disagreement",
+      "location": "Riverbend Village",
+      "evidence_ids": [
+        "OBS-002",
+        "OBS-005"
+      ],
+      "measurements_m": [
+        4.2,
+        4.0
+      ],
+      "claims": [
+        {
+          "evidence_id": "OBS-002",
+          "source": "Sample water-level sensor",
+          "reported_at": "2026-10-22T08:15:00+05:30",
+          "water_level_m": 4.2
+        },
+        {
+          "evidence_id": "OBS-005",
+          "source": "Sample sensor feed",
+          "reported_at": "2026-10-22T08:25:00+05:30",
+          "water_level_m": 4.0
+        }
+      ],
+      "message": "Water-level readings differ by at least 0.2 m. Verify sensor timing and calibration."
+    }
+  ],
+  "assessment": "Human review recommended. Sample data does not confirm a flood.",
+  "recommended_verification": [
+    "Check authoritative weather and emergency updates.",
+    "Verify conflicting readings with the responsible sensor operator.",
+    "Confirm community reports with trained local responders.",
+    "Require human review before operational decisions."
+  ]
+}
