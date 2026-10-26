@@ -125,11 +125,7 @@ Without credentials or with Zetaris stopped, those commands fail with a clear er
 
 ### Troubleshooting
 
-- **Missing ZETARIS_USER or ZETARIS_PASSWORD:** set them in the session, then retry. - **Missing ZETARIS_USER or ZETARIS_PASSWORD:** set them in the session, then retry the connector CLI. The Streamlit app currently uses local sample flood evidence only. and keep sample flood data.
+- **Missing ZETARIS_USER or ZETARIS_PASSWORD:** set them in the session, then retry the connector CLI. The Streamlit app currently uses local sample flood evidence only. Keep using sample flood data unless the live flood-evidence source has been verified.
 - **JDBC driver JAR was not found:** confirm the JAR path and `ZETARIS_JDBC_JAR`.
 - **Could not connect to Zetaris:** confirm the local instance is up, Java is installed, and DBeaver can still run `SELECT 1`.
-- **JayDeBeApi / JPype import errors:** `pip install -r requirements.txt` inside `.venv`. Java 25 + JPype can still fail even when DBeaver works; that is a live-integration issue, not a passing unit test.
-
-## Safety
-
-This prototype is for demonstration only. It must not replace official alerts, trained responders, or emergency services.
+- **JayDeBeApi / JPype import errors:** run `pip install -r requirements.txt` inside `.venv`. Java 25 + JPype can still fail even when DBeaver works; that is a live-integration issue, not a passing unit test.
