@@ -129,3 +129,7 @@ Without credentials or with Zetaris stopped, those commands fail with a clear er
 - **JDBC driver JAR was not found:** confirm the JAR path and `ZETARIS_JDBC_JAR`.
 - **Could not connect to Zetaris:** confirm the local instance is up, Java is installed, and DBeaver can still run `SELECT 1`.
 - **JayDeBeApi / JPype import errors:** run `pip install -r requirements.txt` inside `.venv`. Java 25 + JPype can still fail even when DBeaver works; that is a live-integration issue, not a passing unit test.
+
+## Safety
+
+This prototype is for demonstration only. It must not replace official alerts, trained responders, or emergency services.
