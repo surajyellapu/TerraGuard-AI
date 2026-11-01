@@ -428,6 +428,34 @@ def main():
             observations = load_sample_flood_evidence()
             analysis = analyze(observations)
             brief = build_incident_brief(observations, analysis)
+            brief += "\n\n" + "=" * 55
+            brief += "\nTERRAGUARD AI — EVIDENCE REVIEW SUMMARY"
+            brief += "\n" + "=" * 55
+
+            brief += f"\n\nTotal observations: {len(observations)}"
+            brief += f"\nFindings flagged: {len(analysis.get('findings', []))}"
+
+            brief += "\n\nEVIDENCE RECORDS:"
+            for item in observations:
+                brief += (
+                    f"\n\n{item.get('id', 'N/A')}"
+                    f"\nSource: {item.get('source', 'N/A')}"
+                    f"\nLocation: {item.get('location', 'N/A')}"
+                    f"\nClaim: {item.get('claim', 'N/A')}"
+                )
+
+            brief += "\n\nANALYZER FINDINGS:"
+            for finding in analysis.get("findings", []):
+                brief += (
+                    f"\n\nType: {finding.get('type', 'unknown')}"
+                    f"\nDetails: {finding.get('message', '')}"
+                )
+
+            brief += (
+                "\n\nHUMAN REVIEW REQUIRED:"
+                "\nVerify evidence freshness, source reliability, "
+                "and conflicting measurements before taking action."
+            )
             st.session_state["observations"] = observations
             st.session_state["analysis"] = analysis
             st.session_state["brief"] = brief
@@ -469,6 +497,68 @@ def main():
         )
 
     # Navigation views keep all functions available without deleting features.
+
+            # Evidence Quality Dashboard
+        st.markdown(
+            '<div class="tg-section"><span>◈</span> Evidence Quality Dashboard</div>',
+            unsafe_allow_html=True,
+        )
+
+        if observations is not None and analysis is not None:
+            total_evidence = len(observations)
+
+            timestamped = analysis.get(
+                "valid_timestamped_observations",
+                analysis.get("timestamped_observations", 0),
+            )
+
+            findings = analysis.get("findings", [])
+
+            missing_timestamps = max(0, total_evidence - timestamped)
+
+            quality_cols = st.columns(3)
+
+            quality_cols[0].metric(
+                "Total Evidence",
+                total_evidence,
+            )
+
+            quality_cols[1].metric(
+                "Timestamped Evidence",
+                timestamped,
+            )
+
+            quality_cols[2].metric(
+                "Findings Requiring Review",
+                len(findings),
+            )
+
+            quality_data = {
+                "Evidence Category": [
+                    "Timestamped",
+                    "Missing timestamps",
+                ],
+                "Number of Records": [
+                    timestamped,
+                    missing_timestamps,
+                ],
+            }
+
+            st.bar_chart(
+                quality_data,
+                x="Evidence Category",
+                y="Number of Records",
+            )
+
+            if findings:
+                st.warning(
+                    f"{len(findings)} finding(s) require human review."
+                )
+            else:
+                st.success("No automated findings were flagged.")
+
+        else:
+            st.info("Load sample evidence to view evidence quality metrics.")
     if page in ("Home", "Evidence Analysis"):
         st.markdown(
             '<div class="tg-section"><span>▤</span> Evidence Table</div>',
@@ -490,7 +580,22 @@ def main():
                         "Status": item.get("status", "sample_data"),
                     }
                 )
-            st.dataframe(table_rows, use_container_width=True, hide_index=True)
+            st.dataframe(
+                table_rows,
+                use_container_width=True,
+                hide_index=True,
+                height=350,
+                column_config={
+                    "ID": st.column_config.TextColumn("Observation ID", width="small"),
+                    "Location": st.column_config.TextColumn("Location", width="medium"),
+                    "Source": st.column_config.TextColumn("Evidence Source", width="medium"),
+                    "Reported at": st.column_config.TextColumn("Reported At", width="medium"),
+                    "Claim": st.column_config.TextColumn("Observation / Claim", width="large"),
+                    "Water level (m)": st.column_config.TextColumn("Water Level (m)", width="small"),
+                    "Rainfall (mm)": st.column_config.TextColumn("Rainfall (mm)", width="small"),
+                    "Status": st.column_config.TextColumn("Evidence Status", width="small"),
+                },
+            )
         else:
             st.info("No data loaded yet. Click the load button above.")
 
@@ -508,7 +613,29 @@ def main():
                 for finding in findings:
                     finding_type = finding.get("type", "unknown")
                     message = finding.get("message", "")
+
+                    related_ids = []
+
+                    if finding_type == "stale_evidence":
+                        related_ids = [
+                            item.get("id", "")
+                            for item in observations
+                            if "old situation report" in item.get("source", "").lower()
+                        ]
+
+                    elif finding_type == "water_level_disagreement":
+                        related_ids = [
+                            item.get("id", "")
+                            for item in observations
+                            if item.get("water_level_m") is not None
+                        ]
+
                     st.warning(f"**{finding_type}** — {message}")
+
+                    if related_ids:
+                        st.caption(
+                            "Related observation IDs: " + ", ".join(related_ids)
+                        )
 
         if analysis is not None:
             with st.expander("View analyzer summary"):
